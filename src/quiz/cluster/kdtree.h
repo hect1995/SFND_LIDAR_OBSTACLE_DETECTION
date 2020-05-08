@@ -25,11 +25,30 @@ struct KdTree
 	: root(NULL)
 	{}
 
+	void insertHelper(Node **node, int level, std::vector<float> point, int id)
+   {
+	  int index_to_care = level%2;
+
+      if(*node == NULL)
+      {
+		Node* nd = new Node(point,id);
+		*node = nd;
+      }
+      else if(point[index_to_care] < (*node)->point[index_to_care])
+      {
+        insertHelper(&(*node)->left, ++level, point, id);
+      }
+      else
+      {
+        insertHelper(&(*node)->right, ++level, point, id);
+      }
+   }
+
 	void insert(std::vector<float> point, int id)
 	{
 		// TODO: Fill in this function to insert a new point into the tree
 		// the function should create a new node and place correctly with in the root 
-
+		insertHelper(&root, 0, point, id);
 	}
 
 	// return a list of point ids in the tree that are within distance of target
