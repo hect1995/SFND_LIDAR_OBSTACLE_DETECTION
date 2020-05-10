@@ -1,14 +1,15 @@
 /* \author Aaron Brown */
 // Quiz on implementing simple RANSAC line fitting
+#ifndef RANSAC2D_H_
+#define RANSAC2D_H_
 
 #include "../../render/render.h"
-#include <unordered_set>
-#include "../../processPointClouds.h"
+//#include "../../processPointClouds.h"
 // using templates for processPointClouds so also include .cpp to help linker
-#include "../../processPointClouds.cpp"
+//#include "../../processPointClouds.cpp"
 #include <cmath>        // std::abs
 
-
+/*
 pcl::PointCloud<pcl::PointXYZ>::Ptr CreateData()
 {
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
@@ -62,8 +63,9 @@ pcl::visualization::PCLVisualizer::Ptr initScene()
   	viewer->addCoordinateSystem (1.0);
   	return viewer;
 }
-
-std::unordered_set<int> Ransac(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, int maxIterations, float distanceTol)
+*/
+template<typename PointT>
+std::unordered_set<int> Ransac3D(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceTol)
 {
 	std::unordered_set<int> inliersResult;
 	std::unordered_set<int> returnInlier;
@@ -123,7 +125,9 @@ std::unordered_set<int> Ransac(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, int ma
 
 }
 
-int main ()
+#endif /* RANSAC2D_H_ */
+
+/*int main ()
 {
 
 	// Create viewer
@@ -166,3 +170,4 @@ int main ()
   	}
   	
 }
+*/

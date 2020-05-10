@@ -1,6 +1,10 @@
 // PCL lib Functions for processing point clouds 
-
+#include <cmath>
+#include <unordered_set>
 #include "processPointClouds.h"
+#include "quiz/cluster/cluster.hpp"
+#include "quiz/cluster/kdtree.h"
+#include "quiz/ransac/ransac2d.hpp"
 
 
 //constructor:
@@ -100,7 +104,8 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
     // Time segmentation process
     auto startTime = std::chrono::steady_clock::now();
     // TODO:: Fill in this function to find inliers for the cloud.
-    pcl::ModelCoefficients::Ptr coeficients (new pcl::ModelCoefficients());
+    std::unordered_set<int> inliers_index = Ransac3D<PointT>(cloud, maxIterations, distanceThreshold);
+    /*pcl::ModelCoefficients::Ptr coeficients (new pcl::ModelCoefficients());
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
     pcl::SACSegmentation<PointT> seg;
     seg.setOptimizeCoefficients(true);
@@ -114,6 +119,11 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
     if (inliers->indices.size() == 0)
     {
         std::cout << "ERROR\n";
+    }*/
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
+    for (auto inlier : inliers_index)
+    {
+        inliers->indices.push_back(inlier);
     }
 
     auto endTime = std::chrono::steady_clock::now();
@@ -137,16 +147,31 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::C
 
     // TODO:: Fill in the function to perform euclidean clustering to group detected obstacles
     // Creating the KdTree object for the search method of the extraction
-    typename pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>());
-    tree->setInputCloud (cloud);
+    //typename pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>());
+    //tree->setInputCloud (cloud);
+    std::vector<std::vector<float>> points;
+    KdTree *tree (new KdTree());
+    for (int i=0; i<cloud->points.size(); i++)
+    {
+        points.push_back({cloud->points[i].x,cloud->points[i].y,cloud->points[i].z});
+        tree->insert({cloud->points[i].x,cloud->points[i].y,cloud->points[i].z}, i);
+    }
+    std::vector<std::vector<int>> cluster_vec = Cluster::euclideanCluster(points, tree, clusterTolerance);
+    for (int i=0;i<cluster_vec.size();i++){
+        pcl::PointIndices points;
+        if (cluster_vec[i].size() < maxSize && cluster_vec[i].size() >= minSize){
+            points.indices = cluster_vec[i];
+            cluster_indices.push_back(points);
+        }
+    }
 
-    pcl::EuclideanClusterExtraction<PointT> ec;
+    /*pcl::EuclideanClusterExtraction<PointT> ec;
     ec.setClusterTolerance (clusterTolerance); // 2cm
     ec.setMinClusterSize (minSize);
     ec.setMaxClusterSize (maxSize);
     ec.setSearchMethod (tree);
     ec.setInputCloud (cloud);
-    ec.extract (cluster_indices);
+    ec.extract (cluster_indices);*/
 
 
     for (auto cluster : cluster_indices)
@@ -170,13 +195,17 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::C
 template<typename PointT>
 BoxQ ProcessPointClouds<PointT>::BoundingBoxQ(typename pcl::PointCloud<PointT>::Ptr cluster)
 {
-
+    pcl::PointCloud<pcl::PointXYZ>::Ptr clusterXY{new pcl::PointCloud<pcl::PointXYZ>};
+    pcl::copyPointCloud(*cluster, *clusterXY);
+    for (auto& pt : clusterXY->points) {
+        pt.z = 0;
+    }
     // Find bounding box for one of the clusters
     BoxQ box;
     Eigen::Vector4f pcaCentroid;
-    pcl::compute3DCentroid(*cluster, pcaCentroid);
+    pcl::compute3DCentroid(*clusterXY, pcaCentroid);
     Eigen::Matrix3f covariance;
-    computeCovarianceMatrixNormalized(*cluster, pcaCentroid, covariance);
+    computeCovarianceMatrixNormalized(*clusterXY, pcaCentroid, covariance);
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors);
     Eigen::Matrix3f eigenVectorsPCA = eigen_solver.eigenvectors();
     eigenVectorsPCA.col(2) = eigenVectorsPCA.col(0).cross(eigenVectorsPCA.col(1));
@@ -193,9 +222,9 @@ BoxQ ProcessPointClouds<PointT>::BoundingBoxQ(typename pcl::PointCloud<PointT>::
     // Final transform
     box.bboxQuaternion =  eigenVectorsPCA; //Quaternions are a way to do rotations https://www.youtube.com/watch?v=mHVwd8gYLnI
     box.bboxTransform = eigenVectorsPCA * meanDiagonal + pcaCentroid.head<3>();
-    box.cube_length = maxPoint.x-minPoint.x;
-    box.cube_width = maxPoint.y-minPoint.y;
-    box.cube_height = maxPoint.z-minPoint.z;
+    box.cube_length = std::abs(maxPoint.x-minPoint.x);
+    box.cube_width = std::abs(maxPoint.y-minPoint.y);
+    box.cube_height = std::abs(maxPoint.z-minPoint.z);
     return box;
 }
 
