@@ -28,13 +28,45 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
     auto startTime = std::chrono::steady_clock::now();
 
     // TODO:: Fill in the function to do voxel grid point reduction and region based filtering
+    // Create the filtering object
+    typename pcl::PointCloud<PointT>::Ptr cloud_filt (new pcl::PointCloud<PointT>());
+    pcl::VoxelGrid<PointT> sor;
+    sor.setInputCloud (cloud);
+    sor.setLeafSize (filterRes, filterRes, filterRes);
+    sor.filter (*cloud_filt);
 
+    typename pcl::PointCloud<PointT>::Ptr cloud_region (new pcl::PointCloud<PointT>());
+
+    pcl::CropBox<PointT> boxFilter(true);
+    boxFilter.setMin(minPoint);
+    boxFilter.setMax(maxPoint);
+    boxFilter.setInputCloud(cloud_filt);
+    boxFilter.filter(*cloud_region);
+
+    pcl::CropBox<PointT> car_parts(true);
+    std::vector<int> indices_inside;
+    boxFilter.setMin(Eigen::Vector4f (-2.6f, -1.7f, -4.0f, 1));
+    boxFilter.setMax(Eigen::Vector4f (2.6f, 1.7f, 4.0f, 1));
+    boxFilter.setInputCloud(cloud_region);
+    boxFilter.filter(indices_inside);
+
+    pcl::PointIndices::Ptr inliers{new pcl::PointIndices};
+    for (int index : indices_inside)
+    {
+        inliers->indices.push_back(index);
+    }
+    pcl::ExtractIndices<PointT> extract;
+
+    // Extract the inliers
+    extract.setInputCloud (cloud_region);
+    extract.setIndices (inliers);
+    extract.setNegative (true);
+    extract.filter (*cloud_region); // all the points that are not inliers are kept and everything now will be obstacles
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     std::cout << "filtering took " << elapsedTime.count() << " milliseconds" << std::endl;
 
-    return cloud;
-
+    return cloud_region;
 }
 
 
@@ -135,6 +167,37 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::C
     return clusters;
 }
 
+template<typename PointT>
+BoxQ ProcessPointClouds<PointT>::BoundingBoxQ(typename pcl::PointCloud<PointT>::Ptr cluster)
+{
+
+    // Find bounding box for one of the clusters
+    BoxQ box;
+    Eigen::Vector4f pcaCentroid;
+    pcl::compute3DCentroid(*cluster, pcaCentroid);
+    Eigen::Matrix3f covariance;
+    computeCovarianceMatrixNormalized(*cluster, pcaCentroid, covariance);
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors);
+    Eigen::Matrix3f eigenVectorsPCA = eigen_solver.eigenvectors();
+    eigenVectorsPCA.col(2) = eigenVectorsPCA.col(0).cross(eigenVectorsPCA.col(1));
+
+    Eigen::Matrix4f projectionTransform(Eigen::Matrix4f::Identity());
+    projectionTransform.block<3,3>(0,0) = eigenVectorsPCA.transpose();
+    projectionTransform.block<3,1>(0,3) = -1.f * (projectionTransform.block<3,3>(0,0) * pcaCentroid.head<3>());
+    typename pcl::PointCloud<PointT>::Ptr cloudPointsProjected (new pcl::PointCloud<PointT>);
+    pcl::transformPointCloud(*cluster, *cloudPointsProjected, projectionTransform);
+    // Get the minimum and maximum points of the transformed cloud.
+    PointT minPoint, maxPoint;
+    pcl::getMinMax3D(*cloudPointsProjected, minPoint, maxPoint);
+    const Eigen::Vector3f meanDiagonal = 0.5f*(maxPoint.getVector3fMap() + minPoint.getVector3fMap());
+    // Final transform
+    box.bboxQuaternion =  eigenVectorsPCA; //Quaternions are a way to do rotations https://www.youtube.com/watch?v=mHVwd8gYLnI
+    box.bboxTransform = eigenVectorsPCA * meanDiagonal + pcaCentroid.head<3>();
+    box.cube_length = maxPoint.x-minPoint.x;
+    box.cube_width = maxPoint.y-minPoint.y;
+    box.cube_height = maxPoint.z-minPoint.z;
+    return box;
+}
 
 template<typename PointT>
 Box ProcessPointClouds<PointT>::BoundingBox(typename pcl::PointCloud<PointT>::Ptr cluster)

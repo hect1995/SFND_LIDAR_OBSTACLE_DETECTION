@@ -78,7 +78,10 @@ std::unordered_set<int> Ransac(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, int ma
 		std::unordered_set<int> inliersResult;
 		int min = 0, max = size_poitcloud-1;
 		while (inliersResult.size()<3){
-			inliersResult.insert(rand() % cloud->points.size());
+			int rand_value = rand() % cloud->points.size();
+			if (std::find(std::begin(inliersResult), std::end(inliersResult), rand_value) == std::end(inliersResult)){
+				inliersResult.insert(rand() % cloud->points.size());
+			}
 		}
 		auto itr = inliersResult.begin();
 		float x1,x2,x3,y1,y2,y3,z1,z2,z3;
