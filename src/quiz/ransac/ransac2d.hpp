@@ -65,64 +65,66 @@ pcl::visualization::PCLVisualizer::Ptr initScene()
 }
 */
 template<typename PointT>
-std::unordered_set<int> Ransac3D(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceTol)
+void Ransac3D(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceTol, pcl::PointIndices &inliers, pcl::ModelCoefficients &model_coefficients)
 {
 	std::unordered_set<int> inliersResult;
-	std::unordered_set<int> returnInlier;
 	srand(time(NULL));
-	
-	// TODO: Fill in this function
 
 	// For max iterations
-	int size_poitcloud = cloud->points.size();
+	while(maxIterations--){
+		// Randomly sample subset and fit line
+		std::unordered_set<int> inliers;
+		while(inliers.size()<3){
+			inliers.insert(rand()%cloud->points.size());
+		}
+		// Measure distance between every point and fitted line
+		auto it = inliers.begin();
+		float x1 = cloud->points[*it].x;
+		float y1 = cloud->points[*it].y;
+		float z1 = cloud->points[*it].z;
+		it++;
+		float x2 = cloud->points[*it].x;
+		float y2 = cloud->points[*it].y;
+		float z2 = cloud->points[*it].z;
+		it++;
+		float x3 = cloud->points[*it].x;
+		float y3 = cloud->points[*it].y;
+		float z3 = cloud->points[*it].z;
 
-	for (int i=0;i<maxIterations; i++){
-		std::unordered_set<int> inliersResult;
-		int min = 0, max = size_poitcloud-1;
-		while (inliersResult.size()<3){
-			int rand_value = rand() % cloud->points.size();
-			if (std::find(std::begin(inliersResult), std::end(inliersResult), rand_value) == std::end(inliersResult)){
-				inliersResult.insert(rand() % cloud->points.size());
+		float a = (y2-y1)*(z3-z1)-(z2-z1)*(y3-y1);
+		float b = (z2-z1)*(x3-x1)-(x2-x1)*(z3-z1);
+		float c = (x2-x1)*(y3-y1)-(y2-y1)*(x3-x1);
+		float d = -(a*x1+b*y1+c*z1);
+		// If distance is smaller than threshold count it as inlier
+		for(int i=0; i < cloud->points.size(); i++){
+			if(inliers.count(i)> 0){
+				continue;
+			}
+			float x = cloud->points[i].x;
+			float y = cloud->points[i].y;
+			float z = cloud->points[i].z;
+
+			float dist = fabs(a * x + b * y + c*z + d)/sqrt(a * a + b*b + c*c);
+			if (dist < distanceTol){
+				inliers.insert(i);
 			}
 		}
-		auto itr = inliersResult.begin();
-		float x1,x2,x3,y1,y2,y3,z1,z2,z3;
-		x1 = cloud->points[*itr].x;
-		y1 = cloud->points[*itr].y;
-		z1 = cloud->points[*itr].z;
-		itr ++;
-		x2 = cloud->points[*itr].x;
-		y2 = cloud->points[*itr].y;
-		z2 = cloud->points[*itr].z;
-		itr ++;
-		x3 = cloud->points[*itr].x;
-		y3 = cloud->points[*itr].y;
-		z3 = cloud->points[*itr].z;
 
-		auto A = (y2-y1)*(z3-z1) - (z2-z1)*(y3-y1);
-		auto B = (z2-z1)*(x3-x1) - (x2-x1)*(z3-z1);
-		auto C = (x2-x1)*(y3-y1)-(y2-y1)*(x3-x1);
-		for (int j=0;j<maxIterations;j++){
-			if (inliersResult.count(j)>0){continue;}
-			auto D = -1*(A*x1+B*y1+C*z1);
-			auto d = fabs(A*cloud->points[j].x+B*cloud->points[j].y+C*cloud->points[j].z + D)/(std::pow(A,2)+std::pow(B,2)+std::pow(C,2));
-			if (d <= distanceTol){inliersResult.insert(j);}
+		if(inliers.size() > inliersResult.size()){
+			inliersResult = inliers;
+			model_coefficients.values = {a,b,c,d};
 		}
 
-		if (inliersResult.size()>returnInlier.size())
-		{
-			returnInlier = inliersResult;
-		}
 	}
-	// Randomly sample subset and fit line
 
-	// Measure distance between every point and fitted line
-	// If distance is smaller than threshold count it as inlier
+	//fill in output variable
+	for(int point : inliersResult){
+		inliers.indices.push_back(point);
+	}
+
 
 	// Return indicies of inliers from fitted line with most inliers
-	
-	return returnInlier;
-
+	return;
 }
 
 #endif /* RANSAC2D_H_ */

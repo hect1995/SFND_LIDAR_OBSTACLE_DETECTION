@@ -104,7 +104,9 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
     // Time segmentation process
     auto startTime = std::chrono::steady_clock::now();
     // TODO:: Fill in this function to find inliers for the cloud.
-    std::unordered_set<int> inliers_index = Ransac3D<PointT>(cloud, maxIterations, distanceThreshold);
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
+	pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
+    Ransac3D<PointT>(cloud, maxIterations, distanceThreshold, *inliers, *coefficients);
     /*pcl::ModelCoefficients::Ptr coeficients (new pcl::ModelCoefficients());
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
     pcl::SACSegmentation<PointT> seg;
@@ -120,12 +122,12 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
     {
         std::cout << "ERROR\n";
     }*/
-    pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
+    /*pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
     for (auto inlier : inliers_index)
     {
         inliers->indices.push_back(inlier);
     }
-
+    */
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     std::cout << "plane segmentation took " << elapsedTime.count() << " milliseconds" << std::endl;

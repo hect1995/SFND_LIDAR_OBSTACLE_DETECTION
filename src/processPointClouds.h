@@ -18,6 +18,7 @@
 #include <ctime>
 #include <chrono>
 #include "render/box.h"
+#include <unordered_set>
 //include "quiz/cluster/kdtree.h"
 
 template<typename PointT>
