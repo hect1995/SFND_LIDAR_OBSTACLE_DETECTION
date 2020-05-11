@@ -81,6 +81,7 @@ struct Cluster
 	static void proximity(const std::vector<std::vector<float>>& points, int id, std::vector<int> &cluster, std::vector<bool> &processed,
 		KdTree* tree, const float &distanceTol)
 	{
+		if (processed[id]){return;}
 		processed[id] = true;
 		cluster.emplace_back(id);
 		std::vector<int> nearby_points = tree->search(points[id], distanceTol);
@@ -93,23 +94,27 @@ struct Cluster
 		}
 	}
 
-	static std::vector<std::vector<int>> euclideanCluster(const std::vector<std::vector<float>>& points, KdTree* tree, float distanceTol)
+	static std::vector<pcl::PointIndices> euclideanCluster(const std::vector<std::vector<float>>& points, KdTree* tree, float distanceTol, int minSize, int maxSize)
 	{
+		std::vector<pcl::PointIndices> cluster_indices;
 
+		if(points.size() < minSize){
+			return cluster_indices;
+		}
 		// TODO: Fill out this function to return list of indices for each cluster
 		std::vector<bool> processed(points.size(),false); 
-		std::vector<std::vector<int>> clusters;
 		for (int i=0; i<points.size(); i++)
 		{
-			if (!processed[i]) // not processed
-			{
-				std::vector<int> cluster;
-				proximity(points, i, cluster, processed, tree, distanceTol);
-				clusters.emplace_back(cluster);
-			}
+			if (processed[i]){continue;} // not processed
+			std::vector<int> cluster;
+			proximity(points, i, cluster, processed, tree, distanceTol);
+			if(cluster.size() < minSize || cluster.size() > maxSize){continue;}
+			pcl::PointIndices indices;
+			indices.indices = std::move(cluster);
+			cluster_indices.push_back(indices);
 		}
 	
-		return clusters;
+		return cluster_indices;
 
 	}
 };
