@@ -3,7 +3,7 @@
 
 #ifndef KDTREE_H_
 #define KDTREE_H_
-#include "../../render/render.h"
+#include "render/render.h"
 
 
 // Structure to represent node of kd tree
@@ -52,6 +52,7 @@ struct KdTree
 		// the function should create a new node and place correctly with in the root 
 		insertHelper(&root, 0, point, id);
 	}
+
 
 	void searchHelper(std::vector<float> target, float distanceTol, Node **node, int level, std::vector<int> &ids)
 	{
